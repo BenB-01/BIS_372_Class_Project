@@ -72,7 +72,7 @@ def get_instructor_name(crn):
         
         query_string = json.dumps(instructor_names_dict)
         try:
-            response = requests.post(url, data=query_str, timout=10)
+            response = requests.post(url, data=instructor_names_dict, timout=10)
         except:
             print("Error... API call failed")
             exit(1)
