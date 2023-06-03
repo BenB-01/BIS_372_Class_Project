@@ -18,10 +18,6 @@ import requests
 import json
 import pandas as pd
 
-# Dataframe that will later contain all the data retrieved from the API
-column_names = ['instructor', 'Term', 'Course', 'CRN']
-df = pd.DataFrame(columns=column_names)
-
 # List containing all the different Business Majors at OSU
 majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACTG"]
 
@@ -29,6 +25,9 @@ majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACT
 def get_classes(year, term):
     """Function that uses the classes.oregonstate.edu API to extract all Business classes and their instructors for
        the current term."""
+
+    # List containing dataframes with the data for each major
+    data_frames = []
 
     # OSU course catalog URL
     url = "https://classes.oregonstate.edu/api/?page=fose&route=search"
@@ -44,17 +43,30 @@ def get_classes(year, term):
         # Convert query_dict into string
         query_str = json.dumps(query_dict)
 
-        # print("query_str: ", query_str)
         try:
             # Make POST request; pass query_str as data
             response = requests.post(url, data=query_str, timeout=10)
+
+            api_data = json.loads(response.text)
+
+            # Extract crn and title from each result
+            results = api_data['results']
+
+            new_data = pd.DataFrame({'Term': year + term,
+                                     'CRN': [result['crn'] for result in results],
+                                     'Course': [result['title'] for result in results],
+                                     'Instructor': [result['instr'] for result in results]})
+
+            # Append the new DataFrame to the list of data_frames
+            data_frames.append(new_data)
+
         except:
             print("Error... API call failed")
             exit(1)
 
-        # printing data to see what API returns, later the important data should be saved here
-        print(response.text)
-        print(" ")
+    # Concatenate all the DataFrames in the list to have one dataframe containing all the courses of the term
+    df_term_data = pd.concat(data_frames, ignore_index=True)
+    print(df_term_data)
 
 
 def remove_duplicates(dataframe):
