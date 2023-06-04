@@ -17,6 +17,7 @@
 import requests
 import json
 import pandas as pd
+import re
 
 # List containing all the different Business Majors at OSU
 majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACTG"]
@@ -60,38 +61,70 @@ def get_classes(year, term):
             # Append the new DataFrame to the list of data_frames
             data_frames.append(new_data)
 
-        except:
-            print("Error... API call failed")
+        except Exception as e:
+            print("Error... API call failed:", e)
             exit(1)
 
     # Concatenate all the DataFrames in the list to have one dataframe containing all the courses of the term
     df_term_data = pd.concat(data_frames, ignore_index=True)
-    print(df_term_data)
+    print("Courses from API retrieved.")
+
+    return df_term_data
 
 
 def remove_duplicates(dataframe):
-    df.drop_duplicates(subset="Course", keep="first")
-    pass
+    df_no_duplicates = dataframe.drop_duplicates(subset=["Course", "Instructor"], keep="first").reset_index(drop=True)
+    print("Duplicates removed.")
+
+    return df_no_duplicates
 
 
-def get_instructor_name(crn):
-    url = "https://classes.oregonstate.edu/api/?page=fose&route=search"
-    for major in majors:
-        instructor_names_dict = {
-            "other": {"srcdb": crn },
-            "criteria": [{"field": "subject", "value": major}]
-        }
-        
-        query_string = json.dumps(instructor_names_dict)
+def get_instructor_name(dataframe, term):
+    url = "https://classes.oregonstate.edu/api/?page=fose&route=details"
+
+    # Initialize empty lists for first names and last names
+    first_names = []
+    last_names = []
+
+    for crn in dataframe['CRN']:
+        # Set up the query
+        query_dict = {"srcdb": term, "key": f"crn:{crn}"}
+
+        # Convert query_dict into string
+        query_str = json.dumps(query_dict)
+
         try:
-            response = requests.post(url, data=instructor_names_dict, timout=10)
-        except:
-            print("Error... API call failed")
-            exit(1)
-        print(response.text)
-        print(" ")
-    
+            # Make POST request; pass query_str as data
+            response = requests.post(url, data=query_str, timeout=10)
+            api_data = json.loads(response.text)
+            instructor_detail = api_data["instructordetail_html"]
 
+            # Extract the name using regular expressions
+            match = re.search(r'<div class="instructor-detail">(.+?)</div>', instructor_detail)
+            if match:
+                full_name = match.group(1)
+                first_name, last_name = full_name.split(' ', 1)
+            else:
+                first_name, last_name = "", ""
+
+            # Append first name and last name to the lists
+            first_names.append(first_name)
+            last_names.append(last_name)
+
+        except Exception as e:
+            print("Error... API call failed:", e)
+            exit(1)
+
+    # Drop column Instructor
+    dataframe = dataframe.drop('Instructor', axis=1)
+
+    # Add new columns to the dataframe
+    dataframe['First Name'] = first_names
+    dataframe['Last Name'] = last_names
+    print("First and last names added to the dataframe.")
+
+    return dataframe
+    
 
 def get_emails(first_name, last_name):
     """Function for querying OSU's Lightweight Directory Access Protocol API for the instructor's emails.
@@ -105,5 +138,9 @@ def etl_pipeline():
     pass
 
 
-# test for first function
-get_classes("2023", "03")
+# tests
+df = get_classes("2023", "03")
+df_without_duplicates = remove_duplicates(df)
+df_with_full_names = get_instructor_name(df_without_duplicates, "202303")
+print(df_with_full_names)
+print(df_with_full_names.head())
