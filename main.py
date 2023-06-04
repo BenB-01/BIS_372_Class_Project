@@ -70,13 +70,27 @@ def get_classes(year, term):
 
 
 def remove_duplicates(dataframe):
-    """Function for removing duplicate classes from the dataframe."""
+    df.drop_duplicates(subset="Course", keep="first")
     pass
 
 
-def get_instructor_names(crn):
-    """Function for querying the OSU Course Catalog API for full instructor names."""
-    pass
+def get_instructor_name(crn):
+    url = "https://classes.oregonstate.edu/api/?page=fose&route=search"
+    for major in majors:
+        instructor_names_dict = {
+            "other": {"srcdb": crn },
+            "criteria": [{"field": "subject", "value": major}]
+        }
+        
+        query_string = json.dumps(instructor_names_dict)
+        try:
+            response = requests.post(url, data=instructor_names_dict, timout=10)
+        except:
+            print("Error... API call failed")
+            exit(1)
+        print(response.text)
+        print(" ")
+    
 
 
 def get_emails(first_name, last_name):
