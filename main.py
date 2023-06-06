@@ -162,8 +162,13 @@ def get_emails(dataframe):
     """Function for querying OSU's Lightweight Directory Access Protocol API for the instructor's emails.
     Requires ONID username and password."""
 
-    ldap_login = "burkertb"
-    ldap_password = "Rommelshausen.2001!"
+    # Load credentials from the configuration file
+    with open('config.json') as file:
+        config = json.load(file)
+
+    # Access the credentials
+    ldap_login = config['username']
+    ldap_password = config['password']
 
     # Define the server
     server = Server('onid-k-dc01.onid.oregonstate.edu', get_info=ALL)
@@ -228,6 +233,7 @@ def etl_pipeline():
 
     # Save the final dataframe to a CSV file
     final_dataframe.to_csv('CSV_going_into_Qualtrics_automated.csv', index=False)
+    print("Csv file downloaded.")
 
 
 if __name__ == "__main__":
