@@ -14,6 +14,22 @@
 # https://canvas.oregonstate.edu/courses/1928058/pages/some-services-wich-can-significantly-improve-jws-process-2?module_item_id=23062509
 
 
+#function to request year/term with input()
+import sys
+
+def year_term_input:
+    input_year = input("What year would you like to query?")
+    input_term = input("What term would you like to query?")
+
+#function to collect year/term with argv
+def year_term_argv:
+    argv_year = sys.argv[2]
+    argv_term = sys.argv[3]
+
+
+
+
+
 import requests
 import json
 import pandas as pd
