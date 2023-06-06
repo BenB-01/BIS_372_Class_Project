@@ -25,13 +25,16 @@ from ldap3 import Server, Connection, ALL, SUBTREE
 # List containing all the different Business Majors at OSU
 majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACTG"]
 
+# Dictionary of the term codes and corresponding terms
+term_dict = {"01": "Fall", "02": "Winter", "03": "Spring", "04": "Summer"}
+
 
 def get_year_and_term():
     """Fuction that asks the user via the command line what year and term he wants the data for."""
     pass
 
 
-def get_classes(year, term):
+def get_classes(year, term_code):
     """Function that uses the classes.oregonstate.edu API to extract all Business classes and their instructors for
        the current term."""
 
@@ -45,7 +48,7 @@ def get_classes(year, term):
     for major in majors:
         # Set up the query
         query_dict = {
-            "other": {"srcdb": year + term},
+            "other": {"srcdb": year + term_code},
             "criteria": [{"field": "subject", "value": major}]
         }
 
@@ -64,7 +67,7 @@ def get_classes(year, term):
             # Filter out cancelled courses
             results = [result for result in results if result.get("isCancelled") != "1"]
 
-            new_data = pd.DataFrame({'Term': year + term,
+            new_data = pd.DataFrame({'Term': term_dict.get(term_code) + " " + year,
                                      'CRN': [result['crn'] for result in results],
                                      'Course': [result['code'] for result in results],
                                      'Instructor': [result['instr'] for result in results]})
@@ -78,15 +81,18 @@ def get_classes(year, term):
 
     # Concatenate all the DataFrames in the list to have one dataframe containing all the courses of the term
     df_term_data = pd.concat(data_frames, ignore_index=True)
-    print("Courses from API retrieved.")
+    print("Courses retrieved from API.")
 
     return df_term_data
 
 
 def remove_duplicates(dataframe):
+    """Function that removes all duplicate courses from the dataframe. If an instructor teaches the same course at
+    different times a day, the syllabus will still be the same so duplicate entries in the dataframe aren't needed. """
+
     df_no_duplicates = dataframe.drop_duplicates(subset=["Course", "Instructor"], keep="first").reset_index(drop=True)
 
-    # Remove duplicates with "H" at the end of the course
+    # Remove duplicates with "H" at the end of the course (hybrid classes that have the same syllabus as the normal one)
     df_no_duplicates["Course"] = df_no_duplicates["Course"].str.replace("H$", "", regex=True)
     df_no_duplicates = df_no_duplicates.drop_duplicates(subset=["Course", "Instructor"], keep="first").reset_index(
         drop=True)
@@ -96,7 +102,9 @@ def remove_duplicates(dataframe):
 
 
 def merge_classes_for_instructor(dataframe):
-    # Merge course data for lines with the same instructor
+    """Function that merges all the courses of one instructor into one cell and drops all the other lines of the
+    instructor."""
+
     df_merged = dataframe.groupby("Instructor").agg({"Course": ", ".join, "Term": "first", "CRN": "first"}).reset_index()
     print("Courses merged.")
 
@@ -139,21 +147,68 @@ def get_instructor_name(dataframe, term):
             print("Error... API call failed:", e)
             exit(1)
 
-    # Drop column Instructor
-    dataframe = dataframe.drop('Instructor', axis=1)
+    # Drop columns Instructor and CRN
+    dataframe = dataframe.drop(['Instructor', 'CRN'], axis=1)
 
     # Add new columns to the dataframe
-    dataframe['First Name'] = first_names
-    dataframe['Last Name'] = last_names
+    dataframe['First_Name'] = first_names
+    dataframe['Last_Name'] = last_names
     print("First and last names added to the dataframe.")
 
     return dataframe
     
 
-def get_emails(first_name, last_name):
+def get_emails(dataframe):
     """Function for querying OSU's Lightweight Directory Access Protocol API for the instructor's emails.
     Requires ONID username and password."""
-    pass
+
+    ldap_login = "burkertb"
+    ldap_password = "Rommelshausen.2001!"
+
+    # Define the server
+    server = Server('onid-k-dc01.onid.oregonstate.edu', get_info=ALL)
+
+    # Define the connection
+    connect = Connection(server, user='onid\\' + ldap_login, password=ldap_password)
+
+    # Bind
+    if not connect.bind():
+        print('error in bind', connect.result)
+        exit(1)
+
+    # Create empty email list that saves all the email of the instructors, will later be added as a column
+    email_list = []
+
+    # Loop through all the instructors in the dataframe and collect their emails
+    for first_name, last_name in dataframe[['First_Name', 'Last_Name']].itertuples(index=False):
+        # Set search parameters
+        ldap_filter = "(&(sn=" + last_name + ")(givenName=" + first_name + "))"
+
+        # Set attributes to return
+        ldap_attributes = ["userPrincipalName"]
+
+        # Search
+        try:
+            connect.search(search_base='DC=onid,DC=oregonstate,DC=edu',
+                           search_filter=ldap_filter,
+                           attributes=ldap_attributes,
+                           search_scope=SUBTREE)
+        except:
+            print("Error... searching")
+            exit(1)
+
+        # Extract the email address from the response
+        if len(connect.response) >= 1:
+            email = (connect.response[0]['attributes']['userPrincipalName'])
+            email_list.append(email)
+        else:
+            email_list.append(None)
+
+    # Add email_list as a new column to the DataFrame
+    dataframe['Email'] = email_list
+    print("Emails added to the dataframe.")
+
+    return dataframe
 
 
 def etl_pipeline():
