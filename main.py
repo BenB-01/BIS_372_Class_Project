@@ -1,14 +1,15 @@
 # 1. Ask for year and term
 # 2. Get information about the classes using the API
 #    - define list with all Business Majors and loop through it
+#    - filter out classes that were cancelled
 #    - save results in pandas dataframe (code, instructor, term, crn)
 # 3. Remove duplicates (if code and instructor are the same, syllabus will be the same, remove all but one from df)
 # 4. Get full names of the instructors using another API call (using the crn from the step before)
 #    - replace old instructor column in the dataframe with first_name and last_name columns
-# 4. Get the emails of the instructors using OSU's Lightweight Directory Access Protocol API
+# 5. Get the emails of the instructors using OSU's Lightweight Directory Access Protocol API
 #    - loop thhrough dataframe and retrieve email for each professor using their first and last name
 #    - add emails to the dataframe (new column)
-# 5. Download dataframe as a csv file (should have this format: https://canvas.oregonstate.edu/files/96751548/)
+# 6. Download dataframe as a csv file (should have this format: https://canvas.oregonstate.edu/files/96751469)
 
 # Tips and code from Dr. Reitsma:
 # https://canvas.oregonstate.edu/courses/1928058/pages/some-services-wich-can-significantly-improve-jws-process-2?module_item_id=23062509
@@ -18,9 +19,16 @@ import requests
 import json
 import pandas as pd
 import re
+import sys
+from ldap3 import Server, Connection, ALL, SUBTREE
 
 # List containing all the different Business Majors at OSU
 majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACTG"]
+
+
+def get_year_and_term():
+    """Fuction that asks the user via the command line what year and term he wants the data for."""
+    pass
 
 
 def get_classes(year, term):
@@ -53,9 +61,12 @@ def get_classes(year, term):
             # Extract crn and title from each result
             results = api_data['results']
 
+            # Filter out cancelled courses
+            results = [result for result in results if result.get("isCancelled") != "1"]
+
             new_data = pd.DataFrame({'Term': year + term,
                                      'CRN': [result['crn'] for result in results],
-                                     'Course': [result['title'] for result in results],
+                                     'Course': [result['code'] for result in results],
                                      'Instructor': [result['instr'] for result in results]})
 
             # Append the new DataFrame to the list of data_frames
@@ -74,9 +85,22 @@ def get_classes(year, term):
 
 def remove_duplicates(dataframe):
     df_no_duplicates = dataframe.drop_duplicates(subset=["Course", "Instructor"], keep="first").reset_index(drop=True)
+
+    # Remove duplicates with "H" at the end of the course
+    df_no_duplicates["Course"] = df_no_duplicates["Course"].str.replace("H$", "", regex=True)
+    df_no_duplicates = df_no_duplicates.drop_duplicates(subset=["Course", "Instructor"], keep="first").reset_index(
+        drop=True)
     print("Duplicates removed.")
 
     return df_no_duplicates
+
+
+def merge_classes_for_instructor(dataframe):
+    # Merge course data for lines with the same instructor
+    df_merged = dataframe.groupby("Instructor").agg({"Course": ", ".join, "Term": "first", "CRN": "first"}).reset_index()
+    print("Courses merged.")
+
+    return df_merged
 
 
 def get_instructor_name(dataframe, term):
@@ -141,6 +165,9 @@ def etl_pipeline():
 # tests
 df = get_classes("2023", "03")
 df_without_duplicates = remove_duplicates(df)
-df_with_full_names = get_instructor_name(df_without_duplicates, "202303")
-print(df_with_full_names)
-print(df_with_full_names.head())
+print(df_without_duplicates)
+# df_merge = merge_classes_for_instructor(df_without_duplicates)
+# print(df_merge.head())
+# df_with_full_names = get_instructor_name(df_without_duplicates, "202303")
+# print(df_with_full_names)
+# print(df_with_full_names.head())
