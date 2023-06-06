@@ -213,16 +213,22 @@ def get_emails(dataframe):
 
 def etl_pipeline():
     """Function that executes all the other funtions after each other to execute the API calls and retrieve the data.
-    After that it downloads the dataframe as a csv file which can be later be used in John Womack's process"""
-    pass
+    After that it downloads the dataframe as a csv file which can be later be used in John Womack's process."""
+
+    df = get_classes("2023", "03")
+    df_without_duplicates = remove_duplicates(df)
+    df_merged = merge_classes_for_instructor(df_without_duplicates)
+    df_with_full_names = get_instructor_name(df_merged, "202303")
+    df_emails = get_emails(df_with_full_names)
+
+    # Define the desired column order
+    column_order = ['Last_Name', 'First_Name', 'Term', 'Course', 'Email']
+    # Rearrange the columns
+    final_dataframe = df_emails[column_order]
+
+    # Save the final dataframe to a CSV file
+    final_dataframe.to_csv('CSV_going_into_Qualtrics_automated.csv', index=False)
 
 
-# tests
-df = get_classes("2023", "03")
-df_without_duplicates = remove_duplicates(df)
-print(df_without_duplicates)
-# df_merge = merge_classes_for_instructor(df_without_duplicates)
-# print(df_merge.head())
-# df_with_full_names = get_instructor_name(df_without_duplicates, "202303")
-# print(df_with_full_names)
-# print(df_with_full_names.head())
+if __name__ == "__main__":
+    etl_pipeline()
