@@ -4,15 +4,13 @@
 #    - filter out classes that were cancelled
 #    - save results in pandas dataframe (code, instructor, term, crn)
 # 3. Remove duplicates (if code and instructor are the same, syllabus will be the same, remove all but one from df)
-# 4. Get full names of the instructors using another API call (using the crn from the step before)
+# 4. Merge courses of the same intructor into one line
+# 5. Get full names of the instructors using another API call (using the crn from the step before)
 #    - replace old instructor column in the dataframe with first_name and last_name columns
-# 5. Get the emails of the instructors using OSU's Lightweight Directory Access Protocol API
-#    - loop thhrough dataframe and retrieve email for each professor using their first and last name
+# 6. Get the emails of the instructors using OSU's Lightweight Directory Access Protocol API
+#    - loop through dataframe and retrieve email for each professor using their first and last name
 #    - add emails to the dataframe (new column)
-# 6. Download dataframe as a csv file (should have this format: https://canvas.oregonstate.edu/files/96751469)
-
-# Tips and code from Dr. Reitsma:
-# https://canvas.oregonstate.edu/courses/1928058/pages/some-services-wich-can-significantly-improve-jws-process-2?module_item_id=23062509
+# 7. Download dataframe as a csv file (should have this format: https://canvas.oregonstate.edu/files/96751469)
 
 
 import requests
@@ -249,8 +247,7 @@ def etl_pipeline():
     """Function that executes all the other funtions after each other to execute the API calls and retrieve the data.
     After that it downloads the dataframe as a csv file which can be later be used in John Womack's process."""
 
-    year = get_year_and_term()[0]
-    term_code = get_year_and_term()[1]
+    year, term_code = get_year_and_term()
     df = get_classes(year, term_code)
     df_without_duplicates = remove_duplicates(df)
     df_merged = merge_classes_for_instructor(df_without_duplicates)
