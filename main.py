@@ -15,28 +15,12 @@
 # https://canvas.oregonstate.edu/courses/1928058/pages/some-services-wich-can-significantly-improve-jws-process-2?module_item_id=23062509
 
 
-#function to request year/term with input()
-import sys
-
-def year_term_input:
-    input_year = input("What year would you like to query?")
-    input_term = input("What term would you like to query?")
-
-#function to collect year/term with argv
-def year_term_argv:
-    argv_year = sys.argv[2]
-    argv_term = sys.argv[3]
-
-
-
-
-
 import requests
 import json
 import pandas as pd
 import re
-import sys
 from ldap3 import Server, Connection, ALL, SUBTREE
+
 
 # List containing all the different Business Majors at OSU
 majors = ["MGMT", "HM", "FIN", "DSGN", "SCLM", "MRKT", "BIS", "BANA", "BA", "ACTG"]
@@ -47,7 +31,36 @@ term_dict = {"01": "Fall", "02": "Winter", "03": "Spring", "04": "Summer"}
 
 def get_year_and_term():
     """Fuction that asks the user via the command line what year and term he wants the data for."""
-    pass
+
+    # Ask for year and validate it
+    while True:
+        input_year = input("What year would you like to query?"
+                           "\n Type in the year: ")
+        input_year = input_year.replace(" ", "")  # Remove spaces
+
+        if not input_year.isdigit():
+            print("Invalid year. Please enter a valid integer.")
+        else:
+            break
+
+    input_year = str(input_year)  # Convert to string
+
+    # Ask for term and validate it
+    valid_terms = ["01", "02", "03", "04"]
+
+    while True:
+        input_term = input("What term would you like to query?"
+                           "\n Press 01 for Fall, 02 for Winter, 03 for Spring or 04 for Summer: ")
+        input_term = input_term.replace(" ", "")  # Remove spaces
+
+        if input_term not in valid_terms:
+            print("Invalid term. Please enter a valid option.")
+        else:
+            break
+
+    input_term = str(input_term)  # Convert to string
+
+    return input_year, input_term
 
 
 def get_classes(year, term_code):
@@ -214,8 +227,8 @@ def get_emails(dataframe):
                            search_filter=ldap_filter,
                            attributes=ldap_attributes,
                            search_scope=SUBTREE)
-        except:
-            print("Error... searching")
+        except Exception as e:
+            print("Error... searching: ", e)
             exit(1)
 
         # Extract the email address from the response
@@ -236,10 +249,12 @@ def etl_pipeline():
     """Function that executes all the other funtions after each other to execute the API calls and retrieve the data.
     After that it downloads the dataframe as a csv file which can be later be used in John Womack's process."""
 
-    df = get_classes("2023", "03")
+    year = get_year_and_term()[0]
+    term_code = get_year_and_term()[1]
+    df = get_classes(year, term_code)
     df_without_duplicates = remove_duplicates(df)
     df_merged = merge_classes_for_instructor(df_without_duplicates)
-    df_with_full_names = get_instructor_name(df_merged, "202303")
+    df_with_full_names = get_instructor_name(df_merged, year+term_code)
     df_emails = get_emails(df_with_full_names)
 
     # Define the desired column order
